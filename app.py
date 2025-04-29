@@ -19,74 +19,86 @@ if modo == "Formatear preguntas (TXT)":
     st.write("""
     📋 **Instrucciones para pegar tus preguntas:**
 
-    * Pega tus preguntas en el área de texto a continuación
-    * Las alternativas deben comenzar con letras minúsculas a), b), c), d)
-    * Marca la respuesta correcta agregando un asterisco (*) **antes de la letra** correspondiente, por ejemplo: *c)
+    * La pregunta debe empezar con número seguido de punto (ej: 1.)
+    * Cada alternativa debe comenzar con minúscula a), b), c), d)
+    * Marca la respuesta correcta agregando un asterisco (*) **antes de la letra**, ejemplo: *d)
     """)
 
     # Área para pegar preguntas
-    texto_usuario = st.text_area("Preguntas:", height=300)
+    texto_usuario = st.text_area("Pega aquí tus preguntas:", height=300)
 
     # Botón para procesar
     if st.button("Procesar y validar"):
         if not texto_usuario.strip():
             st.warning("⚠️ Por favor pega las preguntas antes de procesar.")
         else:
-            bloques = re.split(r'\n\s*\n', texto_usuario.strip())
+            bloques = re.split(r'\n(?=\d+\.\s)', texto_usuario.strip())
             salida = []
             errores = []
+            formato_invalido = False
+
             for idx, bloque in enumerate(bloques, start=1):
                 lineas = bloque.strip().split('\n')
-                if not lineas:
+                if not lineas or len(lineas) < 5:
+                    errores.append(f"❗ Pregunta {idx}: No tiene las 4 opciones requeridas o falta el formato correcto.")
+                    formato_invalido = True
                     continue
 
-                # Primera línea contiene el número y la pregunta
-                primera_linea = lineas[0]
-                pregunta_match = re.match(r'^\d+\.\s*(.*)', primera_linea)
-                if not pregunta_match:
+                # Validar formato de la primera línea (número punto pregunta)
+                if not re.match(r'^\d+\.\s*.*\?\]?', lineas[0]):
+                    errores.append(f"❗ Pregunta {idx}: El enunciado debe comenzar con número punto y terminar con signo de pregunta.")
+                    formato_invalido = True
                     continue
-                pregunta = pregunta_match.group(1).strip()
 
+                # Validar alternativas
                 alternativas = []
                 tiene_correcta = False
 
                 for linea in lineas[1:]:
                     linea = linea.strip()
+                    if not re.match(r'^(\*?[a-d]\))\s', linea):
+                        errores.append(f"❗ Pregunta {idx}: Alternativas deben comenzar con a), b), c) o d) (minúsculas).")
+                        formato_invalido = True
+                        break
+
                     correcta = False
                     if linea.startswith('*'):
                         correcta = True
                         tiene_correcta = True
                         linea = linea[1:].strip()
 
-                    opcion_match = re.match(r'^[a-d]\)\s*(.*)', linea, re.IGNORECASE)
+                    opcion_match = re.match(r'^[a-d]\)\s*(.*)', linea)
                     if opcion_match:
                         texto_opcion = opcion_match.group(1).strip()
                         estado = "Correct" if correcta else "Incorrect"
                         alternativas.append((texto_opcion, estado))
+                    else:
+                        errores.append(f"❗ Pregunta {idx}: Error procesando alternativas.")
+                        formato_invalido = True
 
                 if not tiene_correcta:
-                    errores.append(f"❗ Pregunta {idx}: No tiene ninguna respuesta marcada como Correct.")
+                    errores.append(f"❗ Pregunta {idx}: No tiene respuesta correcta marcada con '*'.")
+                    formato_invalido = True
 
-                # Crear la fila solo si tiene alternativas
-                if alternativas:
-                    fila = ["MC", pregunta]
+                if not formato_invalido:
+                    pregunta_texto = re.sub(r'^\d+\.\s*', '', lineas[0]).strip()
+                    fila = ["MC", pregunta_texto]
                     for texto_opcion, estado in alternativas:
                         fila.append(texto_opcion)
                         fila.append(estado)
                     salida.append("\t".join(fila))
 
+            # Mostrar errores o resultado
             if errores:
-                st.error("Se encontraron errores en las preguntas:")
+                st.error("⚠️ Se encontraron errores en el formato:")
                 for error in errores:
                     st.write(error)
                 st.stop()
             
-            # Mostrar el contenido formateado
             contenido_final = "\n".join(salida)
             st.success("✅ Formateado exitosamente. Puedes revisar abajo y descargar.")
             st.text_area("Contenido generado:", value=contenido_final, height=300)
 
-            # Permitir descargar
             st.download_button(
                 label="📥 Descargar preguntas formateadas",
                 data=contenido_final,
