@@ -132,144 +132,151 @@ else:
             st.stop()
     
         try:
-            partes = contenido_total.split("Justificación de claves pregunta 1:")
-            preguntas_texto = partes[0].strip()
-            justificaciones_texto = "Justificación de claves pregunta 1:" + partes[1]
-    
-            preguntas_bloques = re.split(r'\n(?=\d+\.\s)', preguntas_texto)
-            justificaciones_bloques = re.split(r'Justificación de claves pregunta \d+:', justificaciones_texto)[1:]
-    
+            # Procesamiento mejorado que detecta automáticamente el número de preguntas
+            preguntas_bloques = re.split(r'\n(?=\d+\.\s)', contenido_total.split("Justificación de claves pregunta")[0].strip())
+            justificaciones_bloques = re.findall(r'Justificación de claves pregunta \d+:(.*?)(?=(?:Justificación de claves pregunta \d+:|$))', 
+                                               contenido_total, re.DOTALL)
+
             preguntas = []
             for idx, bloque in enumerate(preguntas_bloques):
-                lineas = bloque.strip().split('\n')
-                if not lineas or len(lineas) < 5:
+                lineas = [l.strip() for l in bloque.strip().split('\n') if l.strip()]
+                if not lineas or len(lineas) < 5:  # Mínimo: Pregunta + 4 opciones
                     continue
-    
+                
+                # Extraer pregunta (eliminando número inicial)
                 pregunta_texto = re.sub(r'^\d+\.\s*', '', lineas[0]).strip()
-    
+                
+                # Procesar opciones
                 opciones = []
                 correcta = None
                 for linea in lineas[1:]:
-                    linea = linea.strip()
-                    if linea.startswith('*'):
-                        correcta = re.sub(r'^\*\w\)\s*', '', linea)
+                    if not linea: continue
+                    
+                    # Detectar opción correcta (marcada con *)
+                    if re.match(r'^\*\s*[a-dA-D]\)', linea):
+                        correcta = re.sub(r'^\*\s*[a-dA-D]\)\s*', '', linea).strip()
                         opciones.append(correcta)
                     else:
-                        opcion = re.sub(r'^\w\)\s*', '', linea)
+                        opcion = re.sub(r'^[a-dA-D]\)\s*', '', linea).strip()
                         opciones.append(opcion)
-    
+                
+                if not correcta:
+                    st.error(f"❌ Pregunta {idx+1} no tiene alternativa correcta marcada (usa * antes de la letra)")
+                    st.stop()
+                
                 preguntas.append({
                     "pregunta": pregunta_texto,
                     "opciones": opciones,
                     "correcta": correcta
                 })
-    
-            # Asignar justificaciones formateadas
+
+            # Procesar justificaciones con formato mejorado
             for idx, justificacion_raw in enumerate(justificaciones_bloques):
                 if idx < len(preguntas):
-                    # Formatear justificación con saltos y viñetas
+                    # Limpieza y formato automático de justificaciones
                     justificacion = justificacion_raw.strip()
-                    justificacion = re.sub(r'\n\s*\n', '\n\n', justificacion)  # Espacios dobles
-                    justificacion = re.sub(r'•\s*([a-d]\))', r'•\t\1', justificacion)
-                    justificacion = re.sub(r'\s*•\s*([a-d]\))', r'•\t\1', justificacion)
+                    justificacion = re.sub(r'\n\s*\n+', '\n\n', justificacion)  # Normalizar saltos
+                    justificacion = re.sub(r'([•\-*])\s*([a-dA-D]\)?)', r'\1 \2', justificacion)  # Espacios en viñetas
                     preguntas[idx]["comentario"] = justificacion
 
-            # ---------------------------------------------------------
-            # 🚦 Validación de integridad de preguntas y justificaciones
-            # ---------------------------------------------------------            
-            cantidad_preguntas = len(preguntas)
-            cantidad_justificaciones = len(justificaciones_bloques)
-            
-            st.info(f"🔎 Detectadas {cantidad_preguntas} preguntas y {cantidad_justificaciones} justificaciones.")
-            
-            if cantidad_preguntas != cantidad_justificaciones:
-                st.error(f"❗ Error: El número de preguntas ({cantidad_preguntas}) no coincide con el número de justificaciones ({cantidad_justificaciones}).")
+            # Validación mejorada
+            if len(preguntas) != len(justificaciones_bloques):
+                st.error(f"❗ Error: Se encontraron {len(preguntas)} preguntas pero {len(justificaciones_bloques)} justificaciones.")
                 st.stop()
-            else:
-                st.success("✅ Validación exitosa: Todas las preguntas tienen su justificación correspondiente.")
             
-            # Crear XML Blackboard
+            st.success(f"✅ Validación exitosa: {len(preguntas)} preguntas con sus justificaciones correspondientes.")
+
+            # Generación XML con CDATA automático para todas las justificaciones
             fecha_actual = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%SZ")
             res = f"""<?xml version="1.0" encoding="utf-8"?>
-    <POOL>
-      <COURSEID value="IMPORT" />
-      <TITLE value="{titulo_banco}" />
-      <DESCRIPTION>
-        <TEXT></TEXT>
-      </DESCRIPTION>
+<POOL>
+  <COURSEID value="IMPORT" />
+  <TITLE value="{escape(titulo_banco)}" />
+  <DESCRIPTION>
+    <TEXT></TEXT>
+  </DESCRIPTION>
+  <DATES>
+    <CREATED value="{fecha_actual}" />
+    <UPDATED value="{fecha_actual}" />
+  </DATES>
+  <QUESTIONLIST>
+"""
+            # Lista de preguntas
+            for i in range(1, len(preguntas)+1):
+                res += f'    <QUESTION id="q{i}" class="QUESTION_MULTIPLECHOICE" />\n'
+            res += "  </QUESTIONLIST>\n"
+
+            # Detalles de cada pregunta
+            for i, p in enumerate(preguntas, 1):
+                res += f"""  <QUESTION_MULTIPLECHOICE id="q{i}">
+    <DATES>
+      <CREATED value="{fecha_actual}" />
+      <UPDATED value="{fecha_actual}" />
+    </DATES>
+    <BODY>
+      <TEXT>{escape(p['pregunta'])}</TEXT>
+      <FLAGS value="true">
+        <ISHTML value="true" />
+        <ISNEWLINELITERAL />
+      </FLAGS>
+    </BODY>
+"""
+                # Opciones de respuesta
+                for j, opcion in enumerate(p['opciones'], 1):
+                    res += f"""    <ANSWER id="q{i}_a{j}" position="{j}">
       <DATES>
         <CREATED value="{fecha_actual}" />
         <UPDATED value="{fecha_actual}" />
       </DATES>
-      <QUESTIONLIST>
-    """
-    
-            for i in range(1, len(preguntas)+1):
-                res += f'    <QUESTION id="q{i}" class="QUESTION_MULTIPLECHOICE" />\n'
-            res += "  </QUESTIONLIST>\n"
-    
-            for i, p in enumerate(preguntas, 1):
-                res += f"""  <QUESTION_MULTIPLECHOICE id="q{i}">
-        <DATES>
-          <CREATED value="{fecha_actual}" />
-          <UPDATED value="{fecha_actual}" />
-        </DATES>
-        <BODY>
-          <TEXT>{p['pregunta']}</TEXT>
-          <FLAGS value="true">
-            <ISHTML value="true" />
-            <ISNEWLINELITERAL />
-          </FLAGS>
-        </BODY>
-    """
-                for j, opcion in enumerate(p['opciones'], 1):
-                    res += f"""    <ANSWER id="q{i}_a{j}" position="{j}">
-          <DATES>
-            <CREATED value="{fecha_actual}" />
-            <UPDATED value="{fecha_actual}" />
-          </DATES>
-          <TEXT>{opcion}</TEXT>
-        </ANSWER>
-    """
+      <TEXT>{escape(opcion)}</TEXT>
+    </ANSWER>
+"""
+                # Respuesta correcta y feedback (con CDATA para todas las justificaciones)
                 idx_correcta = p['opciones'].index(p['correcta']) + 1
-                comentario = p['comentario'].strip()
+                comentario = p.get('comentario', '').strip()
                 res += f"""    <GRADABLE>
-          <FEEDBACK_WHEN_CORRECT><![CDATA[{comentario}]]></FEEDBACK_WHEN_CORRECT>
-          <FEEDBACK_WHEN_INCORRECT>{comentario}</FEEDBACK_WHEN_INCORRECT>
-          <CORRECTANSWER answer_id="q{i}_a{idx_correcta}" />
-        </GRADABLE>
-      </QUESTION_MULTIPLECHOICE>
-    """
-    
+      <FEEDBACK_WHEN_CORRECT><![CDATA[{comentario}]]></FEEDBACK_WHEN_CORRECT>
+      <FEEDBACK_WHEN_INCORRECT><![CDATA[{comentario}]]></FEEDBACK_WHEN_INCORRECT>
+      <CORRECTANSWER answer_id="q{i}_a{idx_correcta}" />
+    </GRADABLE>
+  </QUESTION_MULTIPLECHOICE>
+"""
+
             res += "</POOL>"
-    
-            manifest = f"""<?xml version="1.0" encoding="UTF-8"?>
-    <manifest identifier="man00001">
-      <organization default="toc00001">
-        <tableofcontents identifier="toc00001"/>
-      </organization>
-      <resources>
-        <resource baseurl="res00001" file="res00001.dat" identifier="res00001" type="assessment/x-bb-pool"/>
-      </resources>
-    </manifest>"""
-    
-            with open("res00001.dat", "w", encoding="utf-8") as f:
-                f.write(res)
-            with open("imsmanifest.xml", "w", encoding="utf-8") as f:
-                f.write(manifest)
-    
-            zip_name = "banco_blackboard.zip"
-            with ZipFile(zip_name, "w") as zipf:
-                zipf.write("res00001.dat")
-                zipf.write("imsmanifest.xml")
-    
-            with open(zip_name, "rb") as f:
-                st.download_button(
-                    label="📥 Descargar banco de preguntas Blackboard",
-                    data=f,
-                    file_name=zip_name,
-                    mime="application/zip"
-                )
+
+            # Generar archivos ZIP
+            with tempfile.TemporaryDirectory() as tmpdir:
+                with open(f"{tmpdir}/res00001.dat", "w", encoding="utf-8") as f:
+                    f.write(res)
+                
+                manifest = f"""<?xml version="1.0" encoding="UTF-8"?>
+<manifest identifier="man00001">
+  <organization default="toc00001">
+    <tableofcontents identifier="toc00001"/>
+  </organization>
+  <resources>
+    <resource baseurl="res00001" file="res00001.dat" identifier="res00001" type="assessment/x-bb-pool"/>
+  </resources>
+</manifest>"""
+                
+                with open(f"{tmpdir}/imsmanifest.xml", "w", encoding="utf-8") as f:
+                    f.write(manifest)
+                
+                zip_name = f"banco_{titulo_banco.replace(' ', '_')}.zip" if titulo_banco else "banco_blackboard.zip"
+                with ZipFile(zip_name, "w") as zipf:
+                    zipf.write(f"{tmpdir}/res00001.dat", "res00001.dat")
+                    zipf.write(f"{tmpdir}/imsmanifest.xml", "imsmanifest.xml")
+                
+                with open(zip_name, "rb") as f:
+                    st.download_button(
+                        label="📥 Descargar banco de preguntas",
+                        data=f,
+                        file_name=zip_name,
+                        mime="application/zip"
+                    )
+            
             st.success("✅ ¡Banco de preguntas generado correctamente!")
+
         except Exception as e:
-            st.error(f"❗ Error al procesar: {e}")
+            st.error(f"❗ Error crítico: {str(e)}")
+            st.error("🔍 Revise el formato del texto ingresado según las instrucciones.")
