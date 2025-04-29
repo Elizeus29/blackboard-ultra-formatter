@@ -167,13 +167,26 @@ else:
                     "correcta": correcta
                 })
 
-            # Procesar justificaciones
+            # Procesamiento ESPECÍFICO de justificaciones para CDATA
             for idx, justificacion_raw in enumerate(justificaciones_bloques):
                 if idx < len(preguntas):
-                    justificacion = justificacion_raw.strip()
-                    justificacion = re.sub(r'\n\s*\n+', '\n\n', justificacion)
-                    justificacion = re.sub(r'([•\-*])\s*([a-dA-D]\)?)', r'\1 \2', justificacion)
-                    preguntas[idx]["comentario"] = justificacion
+                    # Conservar saltos de línea originales
+                    comentario = justificacion_raw.replace('\r\n', '\n').replace('\r', '\n')
+                    
+                    # Convertir viñetas al formato HTML
+                    comentario = re.sub(r'(?:\n\s*)?([•\-*])\s*([a-dA-D]\))\s*', r'<br/>&bull; \2 ', comentario)
+                    
+                    # Conservar dobles saltos como separadores de párrafos
+                    comentario = re.sub(r'\n\s*\n+', '<br/><br/>', comentario)
+                    
+                    # Reemplazar saltos simples restantes
+                    comentario = re.sub(r'(?<!\n)\n(?!\n)', '<br/>', comentario.strip())
+                    
+                    # Asegurar formato final
+                    if not comentario.startswith('<br/>'):
+                        comentario = comentario
+                    
+                    preguntas[idx]["comentario"] = comentario
 
             # Validación
             if len(preguntas) != len(justificaciones_bloques):
@@ -182,7 +195,7 @@ else:
             
             st.success(f"✅ Validación exitosa: {len(preguntas)} preguntas con sus justificaciones correspondientes.")
 
-            # Generación XML
+            # Generación XML con CDATA perfectamente formateado
             fecha_actual = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%SZ")
             res = f"""<?xml version="1.0" encoding="utf-8"?>
 <POOL>
@@ -236,8 +249,11 @@ else:
 
             res += "</POOL>"
 
-            # Generar archivos directamente
-            manifest = """<?xml version="1.0" encoding="UTF-8"?>
+            # Generar archivos ZIP
+            zip_name = f"banco_{titulo_banco.replace(' ', '_')}.zip" if titulo_banco else "banco_blackboard.zip"
+            with ZipFile(zip_name, "w") as zipf:
+                zipf.writestr("res00001.dat", res)
+                zipf.writestr("imsmanifest.xml", """<?xml version="1.0" encoding="UTF-8"?>
 <manifest identifier="man00001">
   <organization default="toc00001">
     <tableofcontents identifier="toc00001"/>
@@ -245,12 +261,7 @@ else:
   <resources>
     <resource baseurl="res00001" file="res00001.dat" identifier="res00001" type="assessment/x-bb-pool"/>
   </resources>
-</manifest>"""
-                
-            zip_name = f"banco_{titulo_banco.replace(' ', '_')}.zip" if titulo_banco else "banco_blackboard.zip"
-            with ZipFile(zip_name, "w") as zipf:
-                zipf.writestr("res00001.dat", res)
-                zipf.writestr("imsmanifest.xml", manifest)
+</manifest>""")
             
             with open(zip_name, "rb") as f:
                 st.download_button(
