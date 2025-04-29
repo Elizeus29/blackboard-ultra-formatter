@@ -32,6 +32,11 @@ if modo == "Formatear preguntas (TXT)":
         if not texto_usuario.strip():
             st.warning("⚠️ Por favor pega las preguntas antes de procesar.")
         else:
+            # Nuevo chequeo: ¿hay un texto de Justificación en el pegado?
+            if re.search(r'Justificación de claves pregunta \d+:?', texto_usuario, re.IGNORECASE):
+                st.error("❗ Error: Parece que has pegado una justificación. Solo debes pegar preguntas con alternativas (sin justificaciones).")
+                st.stop()
+
             bloques = re.split(r'\n(?=\d+\.\s)', texto_usuario.strip())
             salida = []
             errores = []
@@ -105,6 +110,7 @@ if modo == "Formatear preguntas (TXT)":
                 file_name='preguntas_blackboard_ultra.txt',
                 mime='text/plain'
             )
+
 
 # ===========================================================
 # MODO 2: CREAR BANCO DE PREGUNTAS PARA BLACKBOARD ULTRA (ZIP)
