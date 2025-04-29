@@ -173,6 +173,7 @@ else:
                     justificacion = justificacion_raw.strip()
                     justificacion = re.sub(r'\n\s*\n', '\n\n', justificacion)  # Espacios dobles
                     justificacion = re.sub(r'•\s*([a-d]\))', r'•\t\1', justificacion)
+                    justificacion = re.sub(r'\s*•\s*([a-d]\))', r'•\t\1', justificacion)
                     preguntas[idx]["comentario"] = justificacion
     
             # Crear XML Blackboard
