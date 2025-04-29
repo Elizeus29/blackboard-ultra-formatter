@@ -5,8 +5,6 @@ import os
 from zipfile import ZipFile
 import datetime
 
-st.title("📝 Herramienta Blackboard Ultra: Formatear o Crear Banco de Preguntas")
-
 # Selector de modo
 modo = st.sidebar.selectbox("Selecciona una acción:", ["Formatear preguntas (TXT)", "Crear Banco de Preguntas (ZIP)"])
 
@@ -175,7 +173,21 @@ else:
                     justificacion = re.sub(r'•\s*([a-d]\))', r'•\t\1', justificacion)
                     justificacion = re.sub(r'\s*•\s*([a-d]\))', r'•\t\1', justificacion)
                     preguntas[idx]["comentario"] = justificacion
-    
+
+            # ---------------------------------------------------------
+            # 🚦 Validación de integridad de preguntas y justificaciones
+            # ---------------------------------------------------------            
+            cantidad_preguntas = len(preguntas)
+            cantidad_justificaciones = len(justificaciones_bloques)
+            
+            st.info(f"🔎 Detectadas {cantidad_preguntas} preguntas y {cantidad_justificaciones} justificaciones.")
+            
+            if cantidad_preguntas != cantidad_justificaciones:
+                st.error(f"❗ Error: El número de preguntas ({cantidad_preguntas}) no coincide con el número de justificaciones ({cantidad_justificaciones}).")
+                st.stop()
+            else:
+                st.success("✅ Validación exitosa: Todas las preguntas tienen su justificación correspondiente.")
+            
             # Crear XML Blackboard
             fecha_actual = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%SZ")
             res = f"""<?xml version="1.0" encoding="utf-8"?>
