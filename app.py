@@ -191,7 +191,7 @@ else:
             res = f"""<?xml version="1.0" encoding="utf-8"?>
 <POOL>
   <COURSEID value="IMPORT" />
-  <TITLE value="{escape(titulo_banco)}" />
+  <TITLE value="{titulo_banco}" />
   <DESCRIPTION>
     <TEXT></TEXT>
   </DESCRIPTION>
@@ -214,7 +214,7 @@ else:
       <UPDATED value="{fecha_actual}" />
     </DATES>
     <BODY>
-      <TEXT>{escape(p['pregunta'])}</TEXT>
+      <TEXT>{p['pregunta']}</TEXT>
       <FLAGS value="true">
         <ISHTML value="true" />
         <ISNEWLINELITERAL />
@@ -228,7 +228,7 @@ else:
         <CREATED value="{fecha_actual}" />
         <UPDATED value="{fecha_actual}" />
       </DATES>
-      <TEXT>{escape(opcion)}</TEXT>
+      <TEXT>{opcion}</TEXT>
     </ANSWER>
 """
                 # Respuesta correcta y feedback (con CDATA para todas las justificaciones)
