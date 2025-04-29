@@ -114,7 +114,7 @@ if modo == "Formatear preguntas (TXT)":
 # MODO 2: CREAR BANCO DE PREGUNTAS PARA BLACKBOARD ULTRA (ZIP)
 # ===========================================================
 else:
-    st.title("📘 Generador de Banco Blackboard Ultra (.zip)")
+    st.header("📘 Generador de Banco Blackboard Ultra (.zip)")
 
     st.markdown("""
     ### 📝 Instrucciones
