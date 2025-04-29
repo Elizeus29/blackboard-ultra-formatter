@@ -98,41 +98,66 @@ if modo == "Formatear preguntas (TXT)":
 # MODO 2: CREAR BANCO DE PREGUNTAS PARA BLACKBOARD ULTRA (ZIP)
 # ===========================================================
 else:
-    st.header("🏛️ Crear Banco de Preguntas para Blackboard Ultra (Formato ZIP)")
+    st.header("🏛️ Crear Banco de Preguntas desde Pegado Masivo (ZIP)")
 
     st.write("""
     ✨ **Instrucciones:**
-    - Define el título del banco de preguntas.
-    - Agrega las preguntas, opciones, selecciona cuál es correcta.
-    - Escribe comentarios para respuestas correctas e incorrectas.
+    - Pega todas tus preguntas + justificaciones.
+    - Las alternativas deben comenzar con a), b), c), d).
+    - Marca la respuesta correcta con un asterisco (*) antes de la letra.
+    - Separa las preguntas de las justificaciones como en el ejemplo proporcionado.
     """)
 
     titulo_banco = st.text_input("Título del Banco de Preguntas:")
 
-    preguntas = []
-    num_preguntas = st.number_input("¿Cuántas preguntas deseas agregar?", min_value=1, max_value=20, value=1, step=1)
+    contenido_total = st.text_area("📋 Pega aquí tus preguntas y justificaciones:", height=600)
 
-    for i in range(num_preguntas):
-        with st.expander(f"✏️ Pregunta {i+1}"):
-            pregunta_texto = st.text_input(f"Texto de la pregunta {i+1}:", key=f"pregunta_{i}")
-            opciones = []
-            for j in range(4):
-                opciones.append(st.text_input(f"Opción {chr(97+j)})", key=f"pregunta_{i}_opcion_{j}"))
-            correcta = st.selectbox(f"¿Cuál es la respuesta correcta?", opciones, key=f"correcta_{i}")
-            comentario_correcto = st.text_area(f"Comentario cuando responde correctamente:", key=f"correcto_{i}")
-            comentario_incorrecto = st.text_area(f"Comentario cuando responde incorrectamente:", key=f"incorrecto_{i}")
+    if st.button("🎯 Procesar Banco y Descargar"):
+        if not contenido_total.strip():
+            st.warning("⚠️ Por favor pega las preguntas y justificaciones.")
+            st.stop()
 
-            preguntas.append({
-                "pregunta": pregunta_texto,
-                "opciones": opciones,
-                "correcta": correcta,
-                "comentario_correcto": comentario_correcto,
-                "comentario_incorrecto": comentario_incorrecto
-            })
+        try:
+            # Paso 1: Separar preguntas de justificaciones
+            partes = contenido_total.split("Justificación de claves pregunta 1:")
+            preguntas_texto = partes[0].strip()
+            justificaciones_texto = "Justificación de claves pregunta 1:" + partes[1]
 
-    # Función de generación
-    if st.button("🎯 Generar Banco de Preguntas"):
-        if titulo_banco.strip() and all(p['pregunta'] and p['correcta'] for p in preguntas):
+            preguntas_bloques = re.split(r'\n(?=\d+\.\s)', preguntas_texto)
+            justificaciones_bloques = re.split(r'Justificación de claves pregunta \d+:', justificaciones_texto)[1:]
+
+            preguntas = []
+            for idx, bloque in enumerate(preguntas_bloques):
+                lineas = bloque.strip().split('\n')
+                if not lineas:
+                    continue
+
+                pregunta_linea = lineas[0]
+                pregunta_texto = re.sub(r'^\d+\.\s*', '', pregunta_linea).strip()
+
+                opciones = []
+                correcta = None
+                for linea in lineas[1:]:
+                    linea = linea.strip()
+                    if linea.startswith('*'):
+                        correcta = re.sub(r'^\*\w\)\s*', '', linea)
+                        opciones.append(correcta)
+                    else:
+                        opcion = re.sub(r'^\w\)\s*', '', linea)
+                        opciones.append(opcion)
+
+                preguntas.append({
+                    "pregunta": pregunta_texto,
+                    "opciones": opciones,
+                    "correcta": correcta
+                })
+
+            # Asociar justificaciones
+            for idx, justificacion in enumerate(justificaciones_bloques):
+                if idx < len(preguntas):
+                    preguntas[idx]['comentario'] = justificacion.strip()
+
+            # Paso 2: Crear banco XML
             fecha_actual = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%SZ")
             res00001_content = f"""<?xml version="1.0" encoding="utf-8"?>
 <POOL>
@@ -176,8 +201,8 @@ else:
 """
                 correcta_idx = p['opciones'].index(p['correcta']) + 1
                 res00001_content += f"""    <GRADABLE>
-      <FEEDBACK_WHEN_CORRECT>{p['comentario_correcto']}</FEEDBACK_WHEN_CORRECT>
-      <FEEDBACK_WHEN_INCORRECT>{p['comentario_incorrecto']}</FEEDBACK_WHEN_INCORRECT>
+      <FEEDBACK_WHEN_CORRECT>{p['comentario']}</FEEDBACK_WHEN_CORRECT>
+      <FEEDBACK_WHEN_INCORRECT>{p['comentario']}</FEEDBACK_WHEN_INCORRECT>
       <CORRECTANSWER answer_id="q{idx}_a{correcta_idx}" />
     </GRADABLE>
   </QUESTION_MULTIPLECHOICE>
@@ -214,5 +239,5 @@ else:
                     mime="application/zip"
                 )
             st.success("✅ Banco de preguntas generado exitosamente.")
-        else:
-            st.error("⚠️ Por favor completa todos los campos antes de generar el banco.")
+        except Exception as e:
+            st.error(f"❗ Error procesando las preguntas: {e}")
