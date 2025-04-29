@@ -132,7 +132,7 @@ else:
             st.stop()
     
         try:
-            # Procesamiento mejorado que detecta automáticamente el número de preguntas
+            # Procesamiento de preguntas
             preguntas_bloques = re.split(r'\n(?=\d+\.\s)', contenido_total.split("Justificación de claves pregunta")[0].strip())
             justificaciones_bloques = re.findall(r'Justificación de claves pregunta \d+:(.*?)(?=(?:Justificación de claves pregunta \d+:|$))', 
                                                contenido_total, re.DOTALL)
@@ -140,19 +140,16 @@ else:
             preguntas = []
             for idx, bloque in enumerate(preguntas_bloques):
                 lineas = [l.strip() for l in bloque.strip().split('\n') if l.strip()]
-                if not lineas or len(lineas) < 5:  # Mínimo: Pregunta + 4 opciones
+                if not lineas or len(lineas) < 5:
                     continue
                 
-                # Extraer pregunta (eliminando número inicial)
                 pregunta_texto = re.sub(r'^\d+\.\s*', '', lineas[0]).strip()
                 
-                # Procesar opciones
                 opciones = []
                 correcta = None
                 for linea in lineas[1:]:
                     if not linea: continue
                     
-                    # Detectar opción correcta (marcada con *)
                     if re.match(r'^\*\s*[a-dA-D]\)', linea):
                         correcta = re.sub(r'^\*\s*[a-dA-D]\)\s*', '', linea).strip()
                         opciones.append(correcta)
@@ -170,23 +167,22 @@ else:
                     "correcta": correcta
                 })
 
-            # Procesar justificaciones con formato mejorado
+            # Procesar justificaciones
             for idx, justificacion_raw in enumerate(justificaciones_bloques):
                 if idx < len(preguntas):
-                    # Limpieza y formato automático de justificaciones
                     justificacion = justificacion_raw.strip()
-                    justificacion = re.sub(r'\n\s*\n+', '\n\n', justificacion)  # Normalizar saltos
-                    justificacion = re.sub(r'([•\-*])\s*([a-dA-D]\)?)', r'\1 \2', justificacion)  # Espacios en viñetas
+                    justificacion = re.sub(r'\n\s*\n+', '\n\n', justificacion)
+                    justificacion = re.sub(r'([•\-*])\s*([a-dA-D]\)?)', r'\1 \2', justificacion)
                     preguntas[idx]["comentario"] = justificacion
 
-            # Validación mejorada
+            # Validación
             if len(preguntas) != len(justificaciones_bloques):
                 st.error(f"❗ Error: Se encontraron {len(preguntas)} preguntas pero {len(justificaciones_bloques)} justificaciones.")
                 st.stop()
             
             st.success(f"✅ Validación exitosa: {len(preguntas)} preguntas con sus justificaciones correspondientes.")
 
-            # Generación XML con CDATA automático para todas las justificaciones
+            # Generación XML
             fecha_actual = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%SZ")
             res = f"""<?xml version="1.0" encoding="utf-8"?>
 <POOL>
@@ -201,12 +197,10 @@ else:
   </DATES>
   <QUESTIONLIST>
 """
-            # Lista de preguntas
             for i in range(1, len(preguntas)+1):
                 res += f'    <QUESTION id="q{i}" class="QUESTION_MULTIPLECHOICE" />\n'
             res += "  </QUESTIONLIST>\n"
 
-            # Detalles de cada pregunta
             for i, p in enumerate(preguntas, 1):
                 res += f"""  <QUESTION_MULTIPLECHOICE id="q{i}">
     <DATES>
@@ -221,7 +215,6 @@ else:
       </FLAGS>
     </BODY>
 """
-                # Opciones de respuesta
                 for j, opcion in enumerate(p['opciones'], 1):
                     res += f"""    <ANSWER id="q{i}_a{j}" position="{j}">
       <DATES>
@@ -231,7 +224,6 @@ else:
       <TEXT>{opcion}</TEXT>
     </ANSWER>
 """
-                # Respuesta correcta y feedback (con CDATA para todas las justificaciones)
                 idx_correcta = p['opciones'].index(p['correcta']) + 1
                 comentario = p.get('comentario', '').strip()
                 res += f"""    <GRADABLE>
@@ -244,12 +236,8 @@ else:
 
             res += "</POOL>"
 
-            # Generar archivos ZIP
-            with tempfile.TemporaryDirectory() as tmpdir:
-                with open(f"{tmpdir}/res00001.dat", "w", encoding="utf-8") as f:
-                    f.write(res)
-                
-                manifest = f"""<?xml version="1.0" encoding="UTF-8"?>
+            # Generar archivos directamente
+            manifest = """<?xml version="1.0" encoding="UTF-8"?>
 <manifest identifier="man00001">
   <organization default="toc00001">
     <tableofcontents identifier="toc00001"/>
@@ -259,24 +247,21 @@ else:
   </resources>
 </manifest>"""
                 
-                with open(f"{tmpdir}/imsmanifest.xml", "w", encoding="utf-8") as f:
-                    f.write(manifest)
-                
-                zip_name = f"banco_{titulo_banco.replace(' ', '_')}.zip" if titulo_banco else "banco_blackboard.zip"
-                with ZipFile(zip_name, "w") as zipf:
-                    zipf.write(f"{tmpdir}/res00001.dat", "res00001.dat")
-                    zipf.write(f"{tmpdir}/imsmanifest.xml", "imsmanifest.xml")
-                
-                with open(zip_name, "rb") as f:
-                    st.download_button(
-                        label="📥 Descargar banco de preguntas",
-                        data=f,
-                        file_name=zip_name,
-                        mime="application/zip"
-                    )
+            zip_name = f"banco_{titulo_banco.replace(' ', '_')}.zip" if titulo_banco else "banco_blackboard.zip"
+            with ZipFile(zip_name, "w") as zipf:
+                zipf.writestr("res00001.dat", res)
+                zipf.writestr("imsmanifest.xml", manifest)
+            
+            with open(zip_name, "rb") as f:
+                st.download_button(
+                    label="📥 Descargar banco de preguntas",
+                    data=f,
+                    file_name=zip_name,
+                    mime="application/zip"
+                )
             
             st.success("✅ ¡Banco de preguntas generado correctamente!")
 
         except Exception as e:
-            st.error(f"❗ Error crítico: {str(e)}")
+            st.error(f"❗ Error: {str(e)}")
             st.error("🔍 Revise el formato del texto ingresado según las instrucciones.")
