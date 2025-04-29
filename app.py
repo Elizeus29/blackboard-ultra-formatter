@@ -116,43 +116,39 @@ if modo == "Formatear preguntas (TXT)":
 # MODO 2: CREAR BANCO DE PREGUNTAS PARA BLACKBOARD ULTRA (ZIP)
 # ===========================================================
 else:
-    st.header("🏛️ Crear Banco de Preguntas desde Pegado Masivo (ZIP)")
+    st.title("📘 Generador de Banco Blackboard Ultra (.zip)")
 
-    st.write("""
-    ✨ **Instrucciones:**
-    - Pega todas tus preguntas + justificaciones.
-    - Las alternativas deben comenzar con a), b), c), d).
-    - Marca la respuesta correcta con un asterisco (*) antes de la letra.
-    - Separa las preguntas de las justificaciones como en el ejemplo proporcionado.
+    st.markdown("""
+    ### 📝 Instrucciones
+    1. Pega las preguntas y justificaciones en el formato correcto.
+    2. Marca la alternativa correcta con un `*` antes de la letra.
+    3. Las justificaciones deben comenzar con `Justificación de claves pregunta X:`
     """)
-
-    titulo_banco = st.text_input("Título del Banco de Preguntas:")
-
-    contenido_total = st.text_area("📋 Pega aquí tus preguntas y justificaciones:", height=600)
-
-    if st.button("🎯 Procesar Banco y Descargar"):
+    
+    titulo_banco = st.text_input("Título del Banco de Preguntas")
+    contenido_total = st.text_area("📋 Pega aquí las preguntas y justificaciones:", height=600)
+    
+    if st.button("🎯 Procesar y Descargar"):
         if not contenido_total.strip():
-            st.warning("⚠️ Por favor pega las preguntas y justificaciones.")
+            st.warning("⚠️ Debes pegar contenido para continuar.")
             st.stop()
-
+    
         try:
-            # Paso 1: Separar preguntas de justificaciones
             partes = contenido_total.split("Justificación de claves pregunta 1:")
             preguntas_texto = partes[0].strip()
             justificaciones_texto = "Justificación de claves pregunta 1:" + partes[1]
-
+    
             preguntas_bloques = re.split(r'\n(?=\d+\.\s)', preguntas_texto)
             justificaciones_bloques = re.split(r'Justificación de claves pregunta \d+:', justificaciones_texto)[1:]
-
+    
             preguntas = []
             for idx, bloque in enumerate(preguntas_bloques):
                 lineas = bloque.strip().split('\n')
-                if not lineas:
+                if not lineas or len(lineas) < 5:
                     continue
-
-                pregunta_linea = lineas[0]
-                pregunta_texto = re.sub(r'^\d+\.\s*', '', pregunta_linea).strip()
-
+    
+                pregunta_texto = re.sub(r'^\d+\.\s*', '', lineas[0]).strip()
+    
                 opciones = []
                 correcta = None
                 for linea in lineas[1:]:
@@ -163,99 +159,104 @@ else:
                     else:
                         opcion = re.sub(r'^\w\)\s*', '', linea)
                         opciones.append(opcion)
-
+    
                 preguntas.append({
                     "pregunta": pregunta_texto,
                     "opciones": opciones,
                     "correcta": correcta
                 })
-
-            # Asociar justificaciones
-            for idx, justificacion in enumerate(justificaciones_bloques):
+    
+            # Asignar justificaciones formateadas
+            for idx, justificacion_raw in enumerate(justificaciones_bloques):
                 if idx < len(preguntas):
-                    preguntas[idx]['comentario'] = justificacion.strip()
-
-            # Paso 2: Crear banco XML
+                    # Formatear justificación con saltos y viñetas
+                    justificacion = justificacion_raw.strip()
+                    justificacion = re.sub(r'\n\s*\n', '\n\n', justificacion)  # Espacios dobles
+                    justificacion = re.sub(r'•\s*([a-d]\))', r'•\t\1', justificacion)
+                    preguntas[idx]["comentario"] = justificacion
+    
+            # Crear XML Blackboard
             fecha_actual = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%SZ")
-            res00001_content = f"""<?xml version="1.0" encoding="utf-8"?>
-<POOL>
-  <COURSEID value="IMPORT" />
-  <TITLE value="{titulo_banco}" />
-  <DESCRIPTION>
-    <TEXT></TEXT>
-  </DESCRIPTION>
-  <DATES>
-    <CREATED value="{fecha_actual}" />
-    <UPDATED value="{fecha_actual}" />
-  </DATES>
-  <QUESTIONLIST>
-"""
-            for idx, p in enumerate(preguntas, 1):
-                res00001_content += f'    <QUESTION id="q{idx}" class="QUESTION_MULTIPLECHOICE" />\n'
-            res00001_content += """  </QUESTIONLIST>\n"""
-
-            for idx, p in enumerate(preguntas, 1):
-                res00001_content += f"""  <QUESTION_MULTIPLECHOICE id="q{idx}">
-    <DATES>
-      <CREATED value="{fecha_actual}" />
-      <UPDATED value="{fecha_actual}" />
-    </DATES>
-    <BODY>
-      <TEXT>{p['pregunta']}</TEXT>
-      <FLAGS value="true">
-        <ISHTML value="true" />
-        <ISNEWLINELITERAL />
-      </FLAGS>
-    </BODY>
-"""
-                for pos, opcion in enumerate(p['opciones'], 1):
-                    res00001_content += f"""    <ANSWER id="q{idx}_a{pos}" position="{pos}">
+            res = f"""<?xml version="1.0" encoding="utf-8"?>
+    <POOL>
+      <COURSEID value="IMPORT" />
+      <TITLE value="{titulo_banco}" />
+      <DESCRIPTION>
+        <TEXT></TEXT>
+      </DESCRIPTION>
       <DATES>
         <CREATED value="{fecha_actual}" />
         <UPDATED value="{fecha_actual}" />
       </DATES>
-      <TEXT>{opcion}</TEXT>
-    </ANSWER>
-"""
-                correcta_idx = p['opciones'].index(p['correcta']) + 1
-                res00001_content += f"""    <GRADABLE>
-      <FEEDBACK_WHEN_CORRECT>{p['comentario']}</FEEDBACK_WHEN_CORRECT>
-      <FEEDBACK_WHEN_INCORRECT>{p['comentario']}</FEEDBACK_WHEN_INCORRECT>
-      <CORRECTANSWER answer_id="q{idx}_a{correcta_idx}" />
-    </GRADABLE>
-  </QUESTION_MULTIPLECHOICE>
-"""
-            res00001_content += "</POOL>"
-
-            imsmanifest_content = f"""<?xml version="1.0" encoding="UTF-8"?>
-<manifest identifier="man00001">
-  <organization default="toc00001">
-    <tableofcontents identifier="toc00001"/>
-  </organization>
-  <resources>
-    <resource baseurl="res00001" file="res00001.dat" identifier="res00001" type="assessment/x-bb-pool"/>
-  </resources>
-</manifest>"""
-
-            # Guardar archivos
-            with open("/tmp/res00001.dat", "w", encoding="utf-8") as f:
-                f.write(res00001_content)
-            with open("/tmp/imsmanifest.xml", "w", encoding="utf-8") as f:
-                f.write(imsmanifest_content)
-
-            # Crear ZIP
-            zip_filename = "/tmp/banco_blackboard.zip"
-            with ZipFile(zip_filename, 'w') as zipf:
-                zipf.write("/tmp/res00001.dat", arcname="res00001.dat")
-                zipf.write("/tmp/imsmanifest.xml", arcname="imsmanifest.xml")
-
-            with open(zip_filename, "rb") as f:
+      <QUESTIONLIST>
+    """
+    
+            for i in range(1, len(preguntas)+1):
+                res += f'    <QUESTION id="q{i}" class="QUESTION_MULTIPLECHOICE" />\n'
+            res += "  </QUESTIONLIST>\n"
+    
+            for i, p in enumerate(preguntas, 1):
+                res += f"""  <QUESTION_MULTIPLECHOICE id="q{i}">
+        <DATES>
+          <CREATED value="{fecha_actual}" />
+          <UPDATED value="{fecha_actual}" />
+        </DATES>
+        <BODY>
+          <TEXT>{p['pregunta']}</TEXT>
+          <FLAGS value="true">
+            <ISHTML value="true" />
+            <ISNEWLINELITERAL />
+          </FLAGS>
+        </BODY>
+    """
+                for j, opcion in enumerate(p['opciones'], 1):
+                    res += f"""    <ANSWER id="q{i}_a{j}" position="{j}">
+          <DATES>
+            <CREATED value="{fecha_actual}" />
+            <UPDATED value="{fecha_actual}" />
+          </DATES>
+          <TEXT>{opcion}</TEXT>
+        </ANSWER>
+    """
+                idx_correcta = p['opciones'].index(p['correcta']) + 1
+                comentario = p['comentario'].strip()
+                res += f"""    <GRADABLE>
+          <FEEDBACK_WHEN_CORRECT>{comentario}</FEEDBACK_WHEN_CORRECT>
+          <FEEDBACK_WHEN_INCORRECT>{comentario}</FEEDBACK_WHEN_INCORRECT>
+          <CORRECTANSWER answer_id="q{i}_a{idx_correcta}" />
+        </GRADABLE>
+      </QUESTION_MULTIPLECHOICE>
+    """
+    
+            res += "</POOL>"
+    
+            manifest = f"""<?xml version="1.0" encoding="UTF-8"?>
+    <manifest identifier="man00001">
+      <organization default="toc00001">
+        <tableofcontents identifier="toc00001"/>
+      </organization>
+      <resources>
+        <resource baseurl="res00001" file="res00001.dat" identifier="res00001" type="assessment/x-bb-pool"/>
+      </resources>
+    </manifest>"""
+    
+            with open("res00001.dat", "w", encoding="utf-8") as f:
+                f.write(res)
+            with open("imsmanifest.xml", "w", encoding="utf-8") as f:
+                f.write(manifest)
+    
+            zip_name = "banco_blackboard.zip"
+            with ZipFile(zip_name, "w") as zipf:
+                zipf.write("res00001.dat")
+                zipf.write("imsmanifest.xml")
+    
+            with open(zip_name, "rb") as f:
                 st.download_button(
-                    label="📥 Descargar Banco de Preguntas (.zip)",
+                    label="📥 Descargar banco de preguntas Blackboard",
                     data=f,
-                    file_name="banco_blackboard.zip",
+                    file_name=zip_name,
                     mime="application/zip"
                 )
-            st.success("✅ Banco de preguntas generado exitosamente.")
+            st.success("✅ ¡Banco de preguntas generado correctamente!")
         except Exception as e:
-            st.error(f"❗ Error procesando las preguntas: {e}")
+            st.error(f"❗ Error al procesar: {e}")
