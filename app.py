@@ -234,7 +234,7 @@ else:
                 idx_correcta = p['opciones'].index(p['correcta']) + 1
                 comentario = p['comentario'].strip()
                 res += f"""    <GRADABLE>
-          <FEEDBACK_WHEN_CORRECT>{comentario}</FEEDBACK_WHEN_CORRECT>
+          <FEEDBACK_WHEN_CORRECT><![CDATA[{comentario}]]></FEEDBACK_WHEN_CORRECT>
           <FEEDBACK_WHEN_INCORRECT>{comentario}</FEEDBACK_WHEN_INCORRECT>
           <CORRECTANSWER answer_id="q{i}_a{idx_correcta}" />
         </GRADABLE>
