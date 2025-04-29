@@ -6,9 +6,9 @@ st.title("📝 Formateador de Preguntas para Blackboard Ultra")
 st.write("""
 📋 **Instrucciones para pegar tus preguntas:**
 
-* Pega tus preguntas en el área de texto a continuación.
-* Las alternativas deben comenzar con letras minúsculas (a), b), c), d)).
-* Marca la respuesta correcta agregando un asterisco (*) **antes de la letra** correspondiente (por ejemplo: *c)).
+* Pega tus preguntas en el área de texto a continuación
+* Las alternativas deben comenzar con letras minúsculas a), b), c), d)
+* Marca la respuesta correcta agregando un asterisco (*) **antes de la letra** correspondiente, por ejemplo: *c)
 """)
 
 # Área para pegar preguntas
