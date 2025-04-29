@@ -220,6 +220,7 @@ else:
     """
                 idx_correcta = p['opciones'].index(p['correcta']) + 1
                 comentario = p['comentario'].strip()
+                comentario = comentario.replace("\n\n", "<br><br>").replace("\n", "<br>")
                 res += f"""    <GRADABLE>
           <FEEDBACK_WHEN_CORRECT>{comentario}</FEEDBACK_WHEN_CORRECT>
           <FEEDBACK_WHEN_INCORRECT>{comentario}</FEEDBACK_WHEN_INCORRECT>
