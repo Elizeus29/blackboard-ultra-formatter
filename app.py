@@ -177,13 +177,13 @@ else:
                     comentario = re.sub(r'(?:\n\s*)?([•\-*])\s*([a-dA-D]\))\s*', r'<br/>&bull; \2 ', comentario)
                     
                     # Conservar dobles saltos como separadores de párrafos
-                    comentario = re.sub(r'\n\s*\n+', '<br/><br/>', comentario)
+                    comentario = re.sub(r'\n\s*\n+', '<br/>', comentario)
                     
                     # Reemplazar saltos simples restantes
                     comentario = re.sub(r'(?<!\n)\n(?!\n)', '<br/><br/>', comentario.strip())
                     
                     # Asegurar formato final
-                    if not comentario.startswith('<br/>'):
+                    if not comentario.startswith('<br/><br/>'):
                         comentario = comentario
                     
                     preguntas[idx]["comentario"] = comentario
