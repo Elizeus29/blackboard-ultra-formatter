@@ -180,7 +180,7 @@ else:
                     comentario = re.sub(r'\n\s*\n+', '<br/><br/>', comentario)
                     
                     # Reemplazar saltos simples restantes
-                    comentario = re.sub(r'(?<!\n)\n(?!\n)', '<br/>', comentario.strip())
+                    comentario = re.sub(r'(?<!\n)\n(?!\n)', '<br/><br/>', comentario.strip())
                     
                     # Asegurar formato final
                     if not comentario.startswith('<br/>'):
