@@ -130,7 +130,28 @@ else:
         if not contenido_total.strip():
             st.warning("⚠️ Debes pegar contenido para continuar.")
             st.stop()
-    
+
+        # Validación del orden de aparición y coincidencia de número
+        preguntas_encontradas = re.findall(r'(\d+)\.\s', contenido_total)
+        justificaciones_encontradas = re.findall(r'Justificación de claves pregunta\s+(\d+):', contenido_total)
+        
+        # Convertir a enteros y evitar duplicados
+        pregunta_nums = sorted(set(int(n) for n in preguntas_encontradas))
+        justificacion_nums = sorted(set(int(n) for n in justificaciones_encontradas))
+        
+        # Validar orden de aparición
+        primera_justificacion = re.search(r'Justificación de claves pregunta\s+\d+:', contenido_total)
+        primera_pregunta = re.search(r'\d+\.\s', contenido_total)
+        
+        if primera_justificacion and primera_pregunta and primera_justificacion.start() < primera_pregunta.start():
+            st.error("❌ Las justificaciones aparecen antes que las preguntas. Asegúrate de escribir primero todas las preguntas y luego todas las justificaciones.")
+            st.stop()
+        
+        # Validar cantidad y numeración consecutiva
+        if pregunta_nums != justificacion_nums:
+            st.error(f"❌ El número o el orden de las justificaciones no coincide con las preguntas.\n\nPreguntas encontradas: {pregunta_nums}\nJustificaciones encontradas: {justificacion_nums}")
+            st.stop()
+        
         try:
             # Procesamiento de preguntas
             preguntas_bloques = re.split(r'\n(?=\d+\.\s)', contenido_total.split("Justificación de claves pregunta")[0].strip())
