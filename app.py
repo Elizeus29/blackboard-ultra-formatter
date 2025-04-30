@@ -133,9 +133,21 @@ else:
     
         try:
             # Procesamiento de preguntas
-            preguntas_bloques = re.split(r'\n(?=\d+\.\s)', contenido_total.split("Justificación de claves pregunta")[0].strip())
-            justificaciones_bloques = re.findall(r'Justificación de claves pregunta \d+:(.*?)(?=(?:Justificación de claves pregunta \d+:|$))', 
-                                               contenido_total, re.DOTALL)
+            # Asociación por número: preguntas y justificaciones sin importar el orden
+            preguntas_dict = {}
+            for match in re.finditer(r'(\d+)\.\s(.*?)(?=(?:\n\d+\.\s|\Z))', contenido_total, re.DOTALL):
+                num = int(match.group(1))
+                bloque = match.group(2).strip()
+                preguntas_dict[num] = bloque
+            
+            justificaciones_dict = {}
+            for match in re.finditer(r'Justificación de claves pregunta\s+(\d+):\s*((?:.|\n)*?)(?=(?:Justificación de claves pregunta \d+:|\Z))', contenido_total, re.DOTALL):
+                num = int(match.group(1))
+                bloque = match.group(2).strip()
+                justificaciones_dict[num] = bloque
+            
+            preguntas_bloques = [preguntas_dict[k] for k in sorted(preguntas_dict)]
+            justificaciones_bloques = [justificaciones_dict.get(k, "") for k in sorted(preguntas_dict)]
 
             preguntas = []
             for idx, bloque in enumerate(preguntas_bloques):
