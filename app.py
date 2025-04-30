@@ -131,26 +131,34 @@ else:
             st.warning("⚠️ Debes pegar contenido para continuar.")
             st.stop()
 
-        # Validación del orden de aparición y coincidencia de número
-        preguntas_encontradas = re.findall(r'(\d+)\.\s', contenido_total)
-        justificaciones_encontradas = re.findall(r'Justificación de claves pregunta\s+(\d+):', contenido_total)
+        # 🔍 Detectar posiciones reales de aparición para validar el orden
+        pregunta_matches = list(re.finditer(r'(\d+)\.\s', contenido_total))
+        justificacion_matches = list(re.finditer(r'Justificación de claves pregunta\s+(\d+):', contenido_total))
         
-        # Convertir a enteros y evitar duplicados
-        pregunta_nums = sorted(set(int(n) for n in preguntas_encontradas))
-        justificacion_nums = sorted(set(int(n) for n in justificaciones_encontradas))
+        pregunta_orden = [(int(m.group(1)), m.start()) for m in pregunta_matches]
+        justificacion_orden = [(int(m.group(1)), m.start()) for m in justificacion_matches]
         
-        # Validar orden de aparición
-        primera_justificacion = re.search(r'Justificación de claves pregunta\s+\d+:', contenido_total)
-        primera_pregunta = re.search(r'\d+\.\s', contenido_total)
-        
-        if primera_justificacion and primera_pregunta and primera_justificacion.start() < primera_pregunta.start():
-            st.error("❌ Las justificaciones aparecen antes que las preguntas. Asegúrate de escribir primero todas las preguntas y luego todas las justificaciones.")
+        # 1. Validar que las preguntas aparecen antes que cualquier justificación
+        if justificacion_orden and pregunta_orden and justificacion_orden[0][1] < pregunta_orden[0][1]:
+            st.error("❌ Las justificaciones aparecen antes que las preguntas. Debes escribir primero TODAS las preguntas, luego TODAS las justificaciones en orden.")
             st.stop()
         
-        # Validar cantidad y numeración consecutiva
-        if pregunta_nums != justificacion_nums:
-            st.error(f"❌ El número o el orden de las justificaciones no coincide con las preguntas.\n\nPreguntas encontradas: {pregunta_nums}\nJustificaciones encontradas: {justificacion_nums}")
+        # 2. Validar que los números coinciden
+        pregunta_numeros = [n for n, _ in pregunta_orden]
+        justificacion_numeros = [n for n, _ in justificacion_orden]
+        
+        if sorted(pregunta_numeros) != sorted(justificacion_numeros):
+            st.error(f"❌ Las preguntas y justificaciones no coinciden en cantidad o numeración.\n\nPreguntas encontradas: {pregunta_numeros}\nJustificaciones encontradas: {justificacion_numeros}")
             st.stop()
+        
+        # 3. Validar que las justificaciones están en el mismo orden que las preguntas
+        for i, (preg_num, _) in enumerate(pregunta_orden):
+            if i < len(justificacion_orden):
+                just_num, _ = justificacion_orden[i]
+                if preg_num != just_num:
+                    st.error(f"❌ Error de orden: La pregunta {preg_num} no coincide con la justificación {just_num} en la posición {i+1}.\nDebes mantener el orden de aparición.")
+                    st.stop()
+
         
         try:
             # Procesamiento de preguntas
