@@ -123,7 +123,7 @@ else:
     3. Las justificaciones deben comenzar con `Justificación de claves pregunta X:`
     """)
     
-    titulo_banco = st.text_input("Título del Banco de Preguntas")
+    titulo_banco = st.text_input("Título del Banco de Preguntas", placeholder="Ejemplo: Evaluación AWS - Módulo 1")
     contenido_total = st.text_area("📋 Pega aquí las preguntas y justificaciones:", height=600)
     
     if st.button("🎯 Procesar y Descargar"):
@@ -189,6 +189,9 @@ else:
                     preguntas[idx]["comentario"] = comentario
 
             # Validación
+            if not titulo_banco.strip():
+                st.warning("⚠️ Debes ingresar un título para el banco de preguntas antes de continuar.")
+                st.stop()
             if len(preguntas) != len(justificaciones_bloques):
                 st.error(f"❗ Error: Se encontraron {len(preguntas)} preguntas pero {len(justificaciones_bloques)} justificaciones.")
                 st.stop()
