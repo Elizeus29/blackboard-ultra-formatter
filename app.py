@@ -195,117 +195,82 @@ else:
         st.markdown("""
         ### 📝 Instrucciones
         1. Pega las preguntas y justificaciones en el formato correcto.
-        2. Marca la alternativa correcta con un * antes de la letra.
-        3. Las justificaciones deben comenzar con Justificación de claves pregunta X:
+        2. Marca la alternativa correcta con un `*` antes de la letra.
+        3. Las justificaciones deben comenzar con `Justificación de claves pregunta X:`
         """)
-        
+    
         titulo_banco = st.text_input("Título del Banco de Preguntas", placeholder="Ejemplo: Evaluación AWS - Módulo 1")
         contenido_total = st.text_area("📋 Pega aquí las preguntas y justificaciones:", height=600)
-        
+    
         if st.button("🎯 Procesar y Descargar"):
             if not contenido_total.strip():
                 st.warning("⚠️ Debes pegar contenido para continuar.")
                 st.stop()
     
-            # 🔍 Detectar posiciones reales de aparición para validar el orden
-            pregunta_matches = list(re.finditer(r'(?m)^(\d+)\.\s', contenido_total))
-            justificacion_matches = list(re.finditer(r'Justificación de claves pregunta\s+(\d+):', contenido_total))
-            
-            pregunta_orden = [(int(m.group(1)), m.start()) for m in pregunta_matches]
-            justificacion_orden = [(int(m.group(1)), m.start()) for m in justificacion_matches]
-            
-            # 1. Validar que las preguntas aparecen antes que cualquier justificación
-            if justificacion_orden and pregunta_orden and justificacion_orden[0][1] < pregunta_orden[0][1]:
-                st.error("❌ Las justificaciones aparecen antes que las preguntas. Debes escribir primero TODAS las preguntas, luego TODAS las justificaciones en orden.")
+            if not titulo_banco.strip():
+                st.warning("⚠️ Debes ingresar un título para el banco de preguntas antes de continuar.")
                 st.stop()
-            
-            # 2. Validar que los números coinciden
-            pregunta_numeros = [n for n, _ in pregunta_orden]
-            justificacion_numeros = [n for n, _ in justificacion_orden]
-            
-            if sorted(pregunta_numeros) != sorted(justificacion_numeros):
-                st.error(f"❌ Las preguntas y justificaciones no coinciden en cantidad o numeración.\n\nPreguntas encontradas: {pregunta_numeros}\nJustificaciones encontradas: {justificacion_numeros}")
-                st.stop()
-            
-            # 3. Validar que las justificaciones están en el mismo orden que las preguntas
-            for i, (preg_num, _) in enumerate(pregunta_orden):
-                if i < len(justificacion_orden):
-                    just_num, _ = justificacion_orden[i]
-                    if preg_num != just_num:
-                        st.error(f"❌ Error de orden: La pregunta {preg_num} no coincide con la justificación {just_num} en la posición {i+1}.\nDebes mantener el orden de aparición.")
-                        st.stop()
     
-            
             try:
-                # Procesamiento de preguntas
-                preguntas_bloques = re.split(r'\n(?=\d+\.\s)', contenido_total.split("Justificación de claves pregunta")[0].strip())
-                justificaciones_bloques = re.findall(r'Justificación de claves pregunta \d+:(.*?)(?=(?:Justificación de claves pregunta \d+:|$))', 
-                                                   contenido_total, re.DOTALL)
+                # Separar preguntas por número con formato flexible: 1, 1., 1.-, 1-
+                preguntas_dict = {}
+                for bloque in re.split(r'(?m)(?=^\d+(?:\.\-?|\-|\.)?\s)', contenido_total.split("Justificación de claves pregunta")[0].strip()):
+                    match = re.match(r'^(\d+)(?:\.\-?|\-|\.)?\s', bloque)
+                    if match:
+                        numero = int(match.group(1))
+                        preguntas_dict[numero] = bloque.strip()
+    
+                # Separar y mapear justificaciones
+                justificaciones_dict = {}
+                for match in re.finditer(r'Justificación de claves pregunta (\d+):(.*?)(?=Justificación de claves pregunta \d+:|$)', contenido_total, re.DOTALL):
+                    numero = int(match.group(1))
+                    contenido = match.group(2).strip()
+                    justificaciones_dict[numero] = contenido
     
                 preguntas = []
-                for idx, bloque in enumerate(preguntas_bloques):
+                for numero in sorted(preguntas_dict):
+                    bloque = preguntas_dict[numero]
                     lineas = [l.strip() for l in bloque.strip().split('\n') if l.strip()]
                     if not lineas or len(lineas) < 5:
                         continue
-                    
-                    pregunta_texto = re.sub(r'^\d+\.\s*', '', lineas[0]).strip()
-                    
+    
+                    pregunta_texto = re.sub(r'^\d+(?:\.\-?|\-|\.)?\s*', '', lineas[0]).strip()
                     opciones = []
                     correcta = None
                     for linea in lineas[1:]:
                         if not linea: continue
-                        
                         if re.match(r'^\*\s*[a-eA-E]\)', linea):
                             correcta = re.sub(r'^\*\s*[a-eA-E]\)\s*', '', linea).strip()
                             opciones.append(correcta)
                         else:
                             opcion = re.sub(r'^[a-eA-E]\)\s*', '', linea).strip()
                             opciones.append(opcion)
-                    
+    
                     if not correcta:
-                        st.error(f"❌ Pregunta {idx+1} no tiene alternativa correcta marcada (usa * antes de la letra)")
+                        st.error(f"❌ Pregunta {numero} no tiene alternativa correcta marcada (usa * antes de la letra)")
                         st.stop()
-                    
+    
+                    comentario = justificaciones_dict.get(numero, "Sin justificación.")
+                    comentario = comentario.replace('\r\n', '\n').replace('\r', '\n')
+                    comentario = re.sub(r'(?:\n\s*)?[•\-*]\s*[a-eA-E]\)\s*', r'<br/>&bull; ', comentario)
+                    comentario = re.sub(r'\n\s*\n+', '<br/>', comentario)
+                    comentario = re.sub(r'(?<!\n)\n(?!\n)', '<br/><br/>', comentario.strip())
+    
                     preguntas.append({
                         "pregunta": pregunta_texto,
                         "opciones": opciones,
-                        "correcta": correcta
+                        "correcta": correcta,
+                        "comentario": comentario
                     })
     
-                # Procesamiento ESPECÍFICO de justificaciones para CDATA
-                for idx, justificacion_raw in enumerate(justificaciones_bloques):
-                    if idx < len(preguntas):
-                        # Conservar saltos de línea originales
-                        comentario = justificacion_raw.replace('\r\n', '\n').replace('\r', '\n')
-                        
-                        # Convertir viñetas al formato HTML
-                        comentario = re.sub(r'(?:\n\s*)?([•\-*])\s*([a-eA-E]\))\s*', r'<br/>&bull; \2 ', comentario)
-                        
-                        # Conservar dobles saltos como separadores de párrafos
-                        comentario = re.sub(r'\n\s*\n+', '<br/>', comentario)
-                        
-                        # Reemplazar saltos simples restantes
-                        comentario = re.sub(r'(?<!\n)\n(?!\n)', '<br/><br/>', comentario.strip())
-                        
-                        # Asegurar formato final
-                        if not comentario.startswith('<br/><br/>'):
-                            comentario = comentario
-                        
-                        preguntas[idx]["comentario"] = comentario
+                if len(preguntas) != len(justificaciones_dict):
+                    st.error(f"❗ Error: Se encontraron {len(preguntas)} preguntas pero {len(justificaciones_dict)} justificaciones.")
+                    st.stop()
     
-                # Validación
-                if not titulo_banco.strip():
-                    st.warning("⚠️ Debes ingresar un título para el banco de preguntas antes de continuar.")
-                    st.stop()
-                if len(preguntas) != len(justificaciones_bloques):
-                    st.error(f"❗ Error: Se encontraron {len(preguntas)} preguntas pero {len(justificaciones_bloques)} justificaciones.")
-                    st.stop()
-                
                 st.success(f"✅ Validación exitosa: {len(preguntas)} preguntas con sus justificaciones correspondientes.")
     
-                # Generación XML con CDATA perfectamente formateado
                 fecha_actual = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%SZ")
-                res = f"""<?xml version="1.0" encoding="utf-8"?>
+                res = f"""<?xml version=\"1.0\" encoding=\"utf-8\"?>
     <POOL>
       <COURSEID value="IMPORT" />
       <TITLE value="{titulo_banco}" />
